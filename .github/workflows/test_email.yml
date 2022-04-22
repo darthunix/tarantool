@@ -19,6 +19,5 @@ jobs:
           subject: Github Actions job result
           to: ${{secrets.EMAIL_RECIPIENTS}}
           from: Tarantool Perf <perf@tarantool.org>
-          secure: true
           body: Build job of ${{github.repository}} completed successfully!
           convert_markdown: true
