@@ -1,0 +1,24 @@
+name: test_email
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test_mail:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{secrets.EMAIL_SERVER}}
+          server_port: 465
+          username: ${{secrets.EMAIL_USERNAME}}
+          password: ${{secrets.EMAIL_PASSWORD}}
+          subject: Github Actions job result
+          to: ${{secrets.EMAIL_RECIPIENTS}}
+          from: Tarantool
+          secure: true
+          body: Build job of ${{github.repository}} completed successfully!
+          convert_markdown: true
