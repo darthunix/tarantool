@@ -20,4 +20,3 @@ jobs:
           to: ${{secrets.EMAIL_RECIPIENTS}}
           from: Tarantool Perf <perf@tarantool.org>
           body: Build job of ${{github.repository}} completed successfully!
-          convert_markdown: true
