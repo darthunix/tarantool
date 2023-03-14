@@ -68,6 +68,7 @@
 #include "schema.h"
 #include "xstream.h"
 #include "info/info.h"
+#include "coio_file.h"
 #include "column_mask.h"
 #include "trigger.h"
 #include "wal.h" /* wal_mode() */
@@ -3193,6 +3194,31 @@ vy_gc_lsm(struct vy_lsm_recovery_info *lsm_info)
 	vy_log_tx_try_commit();
 }
 
+static inline int
+rm_dir(const char *path) {
+	int rc = 0;
+	if (coio_rmdir(path) < 0) {
+		if (errno != ENOENT) {
+			if (errno != ENOTEMPTY)
+				say_syserror("error while removing %s", path);
+			rc = -1;
+		}
+	} else
+		say_info("removed %s", path);
+	return rc;
+}
+
+static void
+vy_gc_lsm_root(struct vy_env *env, struct vy_lsm_recovery_info *lsm_info) {
+	char path[PATH_MAX];
+	vy_lsm_snprint_path(path, sizeof(path), env->path,
+			    lsm_info->space_id, lsm_info->index_id);
+	if (rm_dir(path) != 0)
+		return;
+	snprintf(path, sizeof(path), "%s/%u", env->path, lsm_info->space_id);
+	rm_dir(path);
+}
+
 /**
  * Delete unused run files stored in the recovery context.
  * @param env      Vinyl environment.
@@ -3207,10 +3233,11 @@ vy_gc(struct vy_env *env, struct vy_recovery *recovery,
 	int loops = 0;
 	struct vy_lsm_recovery_info *lsm_info;
 	rlist_foreach_entry(lsm_info, &recovery->lsms, in_recovery) {
-		if ((lsm_info->drop_lsn >= 0 &&
-		     (gc_mask & VY_GC_DROPPED) != 0) ||
+		bool lsm_needs_gc = (lsm_info->drop_lsn >= 0 &&
+		    (gc_mask & VY_GC_DROPPED) != 0) ||
 		    (lsm_info->create_lsn < 0 &&
-		     (gc_mask & VY_GC_INCOMPLETE) != 0))
+		    (gc_mask & VY_GC_INCOMPLETE) != 0);
+		if (lsm_needs_gc)
 			vy_gc_lsm(lsm_info);
 
 		struct vy_run_recovery_info *run_info;
@@ -3225,6 +3252,9 @@ vy_gc(struct vy_env *env, struct vy_recovery *recovery,
 			if (loops % VY_YIELD_LOOPS == 0)
 				fiber_sleep(0);
 		}
+
+		if (lsm_needs_gc)
+			vy_gc_lsm_root(env, lsm_info);
 	}
 }
 
